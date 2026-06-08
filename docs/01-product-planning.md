@@ -68,11 +68,25 @@ MVP가 전달해야 하는 작은 가치는 다음이다.
 ### 기술 목표
 
 - React 기반 프론트엔드를 구현한다.
-- Next.js, NestJS, FastAPI, Spring Boot 중 하나 이상의 백엔드를 선택해 구현한다.
-- PostgreSQL, MariaDB, MySQL 중 하나 이상의 관계형 DB를 사용한다.
-- 상용 LLM을 연동한다.
+- FastAPI 기반 백엔드를 구현한다.
+- PostgreSQL을 관계형 DB로 사용한다.
+- JWT Bearer 인증 방식을 사용한다.
+- OpenAI LLM과 embedding 모델을 사용한다.
 - 게시판 필수 기능인 회원가입/로그인, 게시물 CRUD, 댓글, 태그, 페이징, 검색을 구현한다.
 - RAG, MCP, AI Agent를 각각 최소 기능으로 구현하거나 실험 결과를 남긴다.
+
+### 학습 목표
+
+이 프로젝트의 목적은 순수하게 “서비스를 완성하는 것”에만 있지 않다.
+핵심 목표는 React, FastAPI, PostgreSQL 기반 웹 서비스 구조를 만들고, RAG/MCP/Agent를 실제 제품 흐름에 최소 단위로 연결해보면서 각 기술이 왜 필요하고 어디에 쓰이는지 내 말로 설명할 수 있게 되는 것이다.
+
+학습 기준:
+
+- AI가 코드를 작성하더라도 핵심 흐름은 직접 읽고 설명한다.
+- 모든 코드를 줄 단위로 정독하지 않는다. 대신 Phase별 핵심 요청 흐름, 데이터 저장 흐름, 실패 처리 흐름을 따라간다.
+- 프레임워크 내부 원리보다 먼저 “어디서 무엇이 동작하는가”를 이해한다.
+- Phase가 끝날 때마다 구현 결과와 코드 리딩 결과를 짧은 report로 남긴다.
+- 좋은 결과물은 “기능이 동작한다”와 “왜 이렇게 연결됐는지 설명할 수 있다”를 동시에 만족해야 한다.
 
 ## 5) MVP 핵심 루프
 
@@ -97,7 +111,7 @@ MVP의 핵심은 아래 루프를 완성하는 것이다.
 
 - [ ] 회원가입 / 로그인
 - [ ] 회고/트러블슈팅 글 CRUD
-- [ ] 댓글 작성/조회
+- [ ] 댓글 CRUD
 - [ ] 태그 추가 및 태그 기반 조회
 - [ ] 목록 페이징
 - [ ] 제목/본문/태그 검색
@@ -106,7 +120,7 @@ MVP의 핵심은 아래 루프를 완성하는 것이다.
 - [ ] 인터뷰 세션 생성 및 답변 저장
 - [ ] LLM 기반 회고/트러블슈팅 초안 생성
 - [ ] 저장된 과거 기록 기반 관련 기록 추천(RAG 최소 구현)
-- [ ] GitHub 오늘 활동 조회 MCP tool 또는 MCP Spike 결과
+- [ ] GitHub 오늘 활동 조회 MCP tool
 - [ ] Agent 기반 질문 선택 최소 구현
 - [ ] 발표 가능한 README와 데모 시나리오
 
@@ -116,8 +130,8 @@ MVP의 핵심은 아래 루프를 완성하는 것이다.
 | --- | --- | --- | --- |
 | 회원가입 / 로그인 | 개인 기록이므로 사용자별 데이터를 분리한다. | High | Yes |
 | 회고/트러블슈팅 글 CRUD | 사용자의 기록을 게시글로 생성, 조회, 수정, 삭제한다. | High | Yes |
-| 댓글 | 과제 필수 게시판 기능 충족용. 상세 화면에서 간단한 보충 메모를 남긴다. | Medium | Yes |
-| 태그 | 기술, 감정, 프로젝트, 문제 유형별 분류를 제공한다. | High | Yes |
+| 댓글 | 상세 화면에서 보충 메모를 작성, 조회, 수정, 삭제한다. | Medium | Yes |
+| 태그 | 글 생성/수정 시 `tag_names` 배열을 받아 서버가 upsert한다. | High | Yes |
 | 페이징 | 기록 목록을 페이지 단위로 조회한다. | High | Yes |
 | 검색 | 제목, 본문, 태그 기준으로 기록을 찾는다. | High | Yes |
 | 회고 유형 | `daily`, `trouble`, `decision`, `team_issue`, `learning` 타입을 지원한다. | High | Yes |
@@ -198,17 +212,20 @@ MVP의 RAG는 “과거의 나를 기억하는 장치” 역할을 한다.
 
 포함 기능:
 
-- 저장된 회고/트러블슈팅 글의 `title`, `raw_memo`, `final_content`, `tags`를 검색 대상으로 삼는다.
+- MVP 검색 대상은 최종 저장된 회고/트러블슈팅 글인 `ReflectionEntry` 중심으로 제한한다.
+- 검색 대상 필드는 `ReflectionEntry.title`, `ReflectionEntry.final_content`, `tags`다.
 - 새 인터뷰 입력을 기준으로 관련 기록 top-k를 찾는다.
 - 관련 과거 기록을 인터뷰 화면 또는 초안 화면에 표시한다.
 - Agent 질문이나 초안 생성에 관련 기록을 참고 자료로 넣는다.
 
 MVP 기준:
 
-- 가능하면 embedding 기반 검색을 사용한다.
+- embedding 기반 검색을 목표로 한다.
 - 구현 부담이 크면 태그/키워드 검색 fallback부터 시작해도 된다.
 - 중요한 것은 “과거 기록을 현재 회고에 연결한다”는 제품 경험이다.
 - RAG 결과는 숨기지 않고 “참고한 기록”으로 사용자에게 보여준다.
+- API는 `POST /api/v1/rag/search`를 우선 사용한다.
+- 인터뷰 메시지 전체, GitHub ExternalContext, AI 상담 import 기록은 Post-MVP 검색 대상으로 둔다.
 
 ### 8.3 MCP
 
@@ -216,12 +233,12 @@ MVP의 MCP는 “오늘 실제로 무엇을 했는지 가져오는 외부 맥락
 
 포함 기능:
 
-- 작은 커스텀 MCP Server 구현 또는 최소 Spike 결과
+- 작은 커스텀 MCP Server 구현
 - JSON-RPC 기반 요청/응답 처리
 - GitHub API 연동
 - GitHub token 환경변수 관리
-- 오늘 커밋 조회
-- 가능하면 PR/Issue 조회
+- 오늘 커밋 목록 조회
+- 가능하면 오늘 PR/Issue 조회
 - 가져온 활동을 인터뷰 세션의 외부 맥락으로 저장
 
 MVP tool:
@@ -235,6 +252,8 @@ MVP 기준:
 - read-only tool을 우선 구현한다.
 - 사용자가 어떤 외부 데이터를 가져왔는지 확인할 수 있게 한다.
 - 실패 시 GitHub 맥락 없이도 인터뷰를 계속 진행할 수 있어야 한다.
+- API는 `POST /api/v1/external/github/today`를 우선 사용한다.
+- 커밋 diff 분석과 문제 원인 추정은 Post-MVP로 둔다.
 - 실제 제품이라면 공식 GitHub MCP Server 사용도 고려할 수 있지만, 이번 과제에서는 MCP Server 구현 경험이 요구되므로 작은 커스텀 서버를 우선한다.
 
 ## 9) 핵심 사용자 흐름
@@ -277,8 +296,11 @@ MVP 기준:
 - [ ] 사용자가 초안을 수정한 뒤 게시글로 저장할 수 있다.
 - [ ] 저장된 기록을 검색/태그/타입으로 다시 찾을 수 있다.
 - [ ] RAG가 관련 과거 기록을 추천하거나, 최소한 fallback 검색 결과를 제공한다.
-- [ ] MCP가 GitHub 활동 조회를 수행하거나, 최소 Spike 결과와 구현 계획이 문서화되어 있다.
+- [ ] MCP가 GitHub 활동 조회를 수행하고, 조회 결과를 외부 맥락으로 저장한다.
 - [ ] README에서 RAG, MCP, Agent가 각각 어떤 역할인지 설명할 수 있다.
+- [ ] Phase별 핵심 코드 흐름을 직접 읽고 `docs/reviews/`에 review report를 남겼다.
+- [ ] React, FastAPI, PostgreSQL, RAG, MCP, Agent가 이 서비스 안에서 맡는 책임을 내 말로 설명할 수 있다.
+- [ ] AI가 작성한 코드라도 인증, CRUD, 인터뷰, 초안 생성, RAG, MCP의 핵심 경계는 검토했다.
 
 ## 11) 비MVP 범위
 
@@ -303,10 +325,10 @@ MVP 기준:
 
 ## 12) 구현 순서
 
-1. 앱 기본 실행 구조와 DB 연결
+1. FastAPI 앱 기본 실행 구조와 PostgreSQL 연결
 2. 인증 기초
 3. 회고/트러블슈팅 글 CRUD
-4. 태그, 검색, 페이징, 댓글
+4. 태그 upsert, 검색, 페이징, 댓글 CRUD
 5. 회고 유형과 질문 템플릿
 6. 인터뷰 세션과 답변 저장
 7. LLM 초안 생성
@@ -332,16 +354,22 @@ MVP 기준:
 - [ ] Agent는 인터뷰어/정리자 역할을 우선하고, 조언자는 제한적으로만 수행한다.
 - [ ] RAG는 관련 과거 기록 추천부터 시작한다.
 - [ ] MCP는 GitHub read-only 조회부터 시작한다.
+- [x] API 응답 포맷은 `success/data/error` 래퍼를 사용한다.
+- [x] API JSON key는 `snake_case`를 사용한다.
+- [x] 인터뷰 API는 사용자 답변 저장 후 다음 질문 또는 draft-ready 상태를 반환한다.
+- [x] `ReflectionEntry`는 저장 시 `published` 상태로 생성하고, 초안은 `InterviewSession.draft_content`에서 관리한다.
 
 추후 확인할 것:
 
-- [ ] 백엔드는 Next.js, NestJS, FastAPI, Spring Boot 중 무엇을 선택할 것인가?
-- [ ] DB는 PostgreSQL, MariaDB, MySQL 중 무엇을 선택할 것인가?
-- [ ] Vector DB는 pgvector, FAISS, ChromaDB, 외부 서비스 중 무엇을 사용할 것인가?
-- [ ] LLM과 Embedding 모델은 어떤 상용 모델을 사용할 것인가?
-- [ ] Agent 구현은 직접 상태 머신으로 할 것인가, LangGraph 같은 구조를 사용할 것인가?
-- [ ] GitHub MCP에서 커밋, PR, Issue 중 어디까지 MVP에 포함할 것인가?
-- [ ] 댓글은 과제 필수 충족을 위한 최소 기능으로 둘지, 피드백 기능으로 확장할지 결정할 것인가?
+- [x] 백엔드는 FastAPI로 확정
+- [x] DB는 PostgreSQL로 확정
+- [x] 인증 방식은 JWT Bearer로 확정
+- [x] RAG 검색은 `ReflectionEntry` 중심으로 시작하고, Vector Search는 pgvector 우선 / 키워드·태그 fallback 허용으로 진행
+- [x] LLM과 Embedding 모델은 OpenAI 계열로 통일
+- [x] Agent 구현은 MVP에서 직접 상태 머신으로 구현하고, LangGraph는 Post-MVP 후보로 둔다
+- [x] GitHub MCP는 오늘 커밋 목록 중심으로 시작하고, PR/Issue는 가능하면 포함한다. diff 분석과 원인 추정은 Post-MVP로 둔다.
+- [x] 댓글은 CRUD까지 구현한다
+- [x] 태그는 글 생성/수정 시 `tag_names` 배열로 받아 서버에서 upsert한다
 - [ ] 배포 대상은 로컬 데모, 클라우드 VM, Vercel/Render/Railway 등 중 무엇으로 할 것인가?
 
 ## 14) Post-MVP 확장 방향

@@ -1,0 +1,4 @@
+.DS_Store
+
+# Codex hook conversation logs can contain prompts, answers, and private context.
+.codex/conversation-logs/

@@ -24,6 +24,8 @@ Before writing code, Codex should:
 4. Work in a small branch-scoped task, not a whole-project rewrite.
 5. Update docs when behavior, schema, or conventions change.
 6. Keep `README.md` short, presentation-friendly, and suitable for first-time readers.
+7. Treat this project as implementation plus learning: after each implementation Phase, help produce a short code-reading review report under `docs/reviews/` using `docs/reviews/phase-review-template.md`.
+8. When generating a Phase review, focus on request flow, data flow, ownership boundaries, failure handling, and the questions the developer should be able to answer.
 
 ## Codex-First Development Order
 
