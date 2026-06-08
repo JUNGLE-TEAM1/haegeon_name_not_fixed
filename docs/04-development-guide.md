@@ -322,6 +322,7 @@ docs/reviews/
 Report 작성 기준:
 
 - 템플릿은 `docs/reviews/phase-review-template.md`를 사용한다.
+- Phase 중 만난 개념을 AI와 공부할 때는 `docs/prompts/learning-loop-assistant-prompt.md`를 사용한다.
 - report는 길게 쓰지 않는다. 다음 사람이 핵심 흐름을 따라갈 수 있을 정도면 충분하다.
 - “AI가 요약한 설명”만 남기지 않는다. 실제 파일 경로와 내가 확인한 흐름을 적는다.
 - 반드시 “내가 설명할 수 있어야 하는 질문”을 포함한다.
@@ -395,17 +396,18 @@ PR 설명에는 아래를 적습니다.
 - Manual Smoke Test: 브라우저에서 로그인부터 기록 저장까지 확인
 - External Smoke Test: OpenAI, GitHub, MCP 연동은 환경변수 있는 로컬에서 별도 확인
 
-현재 실행 명령은 프로젝트 bootstrap 이후 확정합니다.
+현재 실행 명령:
 
 ```text
-Backend run: TBD
-Backend test: TBD
-Frontend run: TBD
-Frontend build: TBD
-Frontend lint: TBD
+Database run: docker compose up -d db
+Database stop: docker compose down
+Backend install: cd backend && python3 -m venv ../.venv && ../.venv/bin/pip install -r requirements-dev.txt
+Backend run: cd backend && ../.venv/bin/uvicorn app.main:app --reload
+Backend test: cd backend && ../.venv/bin/pytest -q
+Frontend install: cd frontend && npm install
+Frontend run: cd frontend && npm run dev
+Frontend build: cd frontend && npm run build
 ```
-
-명령이 확정되면 이 문서와 `AGENTS.md`의 placeholder를 같이 갱신합니다.
 
 ## 10) 환경변수 관리
 
@@ -438,6 +440,7 @@ MCP_SERVER_URL=
 - `docs/03-api-reference.md 기준으로 POST /api/v1/interviews API를 구현해줘.`
 - `RAG 구현 전에 pgvector spike 결과를 docs/sprint에 정리해줘.`
 - `Phase 1 구현이 끝났으니 docs/reviews/phase-review-template.md 기준으로 auth 코드 리딩 report를 작성해줘.`
+- `docs/prompts/learning-loop-assistant-prompt.md 기준으로 FastAPI Depends 개념을 auth 코드 흐름과 연결해서 짧은 티키타카로 설명해줘.`
 - `구현된 기능 기준으로 README를 발표 친화적으로 다듬어줘.`
 
 피해야 할 요청 예시:

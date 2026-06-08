@@ -26,6 +26,7 @@ Before writing code, Codex should:
 6. Keep `README.md` short, presentation-friendly, and suitable for first-time readers.
 7. Treat this project as implementation plus learning: after each implementation Phase, help produce a short code-reading review report under `docs/reviews/` using `docs/reviews/phase-review-template.md`.
 8. When generating a Phase review, focus on request flow, data flow, ownership boundaries, failure handling, and the questions the developer should be able to answer.
+9. When the user asks to study concepts discovered while reading code, follow `docs/prompts/learning-loop-assistant-prompt.md` and help produce a project-context learning note rather than a generic explanation.
 
 ## Codex-First Development Order
 
@@ -72,11 +73,11 @@ Recommended branch types:
 
 Replace the placeholders below when starting a real project.
 
-- Bootstrap: `[example: ./scripts/bootstrap.sh]`
-- Dev run: `[example: python run.py]`
-- Local test: `[example: pytest -q]`
-- Build: `[example: npm run build]`
-- Lint/format: `[example: npm run lint]`
+- Bootstrap: `cd backend && python3 -m venv ../.venv && ../.venv/bin/pip install -r requirements-dev.txt`; `cd frontend && npm install`
+- Dev run: `cd backend && ../.venv/bin/uvicorn app.main:app --reload`; `cd frontend && npm run dev`
+- Local test: `cd backend && ../.venv/bin/pytest -q`
+- Build: `cd frontend && npm run build`
+- Lint/format: `TBD`
 
 ## Definition of Done
 
