@@ -1,0 +1,18 @@
+from typing import Any, Dict
+
+
+def success_response(data: Any) -> Dict[str, Any]:
+    return {
+        "success": True,
+        "data": data,
+    }
+
+
+def error_response(code: str, message: str) -> Dict[str, Any]:
+    return {
+        "success": False,
+        "error": {
+            "code": code,
+            "message": message,
+        },
+    }
