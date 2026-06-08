@@ -2,3 +2,21 @@
 
 # Codex hook conversation logs can contain prompts, answers, and private context.
 .codex/conversation-logs/
+.codex-logs/
+
+# Local environment and dependencies
+.env
+.env.*
+!.env.example
+.venv/
+node_modules/
+
+# Build and test outputs
+dist/
+build/
+*.tsbuildinfo
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/

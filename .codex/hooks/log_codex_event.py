@@ -118,7 +118,7 @@ def main() -> int:
         "payload": payload,
     }
 
-    log_dir = repo_root() / ".codex" / "conversation-logs"
+    log_dir = repo_root() / ".codex-logs" / "conversation-logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{now.date().isoformat()}.jsonl"
 
