@@ -1,0 +1,34 @@
+name: Re-run Notion Issue Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: rerun-notion-issue-sync
+  cancel-in-progress: false
+
+jobs:
+  rerun:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-run all jobs for the target workflow run
+        uses: actions/github-script@v7
+        env:
+          TARGET_RUN_ID: "27330376655"
+        with:
+          script: |
+            const runId = Number(process.env.TARGET_RUN_ID);
+
+            await github.request("POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun", {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+
+            core.info(`Requested re-run all jobs for workflow run ${runId}.`);

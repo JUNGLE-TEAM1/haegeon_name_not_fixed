@@ -12,10 +12,6 @@ on:
       - unassigned
       - labeled
       - unlabeled
-  schedule:
-    # GitHub Actions schedules run in UTC and create a new workflow run.
-    - cron: "*/5 * * * *"
-
 permissions:
   contents: read
   issues: write
