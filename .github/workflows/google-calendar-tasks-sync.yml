@@ -6,7 +6,7 @@ on:
     - cron: "*/15 * * * *"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: google-calendar-tasks-sync
@@ -24,8 +24,25 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_TASKS_DATABASE_ID: ${{ secrets.NOTION_TASKS_DATABASE_ID || '1ae7a290945144f0a01a2cc376820007' }}
-          GOOGLE_CALENDAR_ICAL_URL: ${{ secrets.GOOGLE_CALENDAR_ICAL_URL }}
-          GCAL_DEFAULT_TIME_OFFSET: "+09:00"
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID || 'primary' }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GCAL_TIME_ZONE: "Asia/Seoul"
           GCAL_SYNC_LOOKBACK_DAYS: "30"
           GCAL_SYNC_LOOKAHEAD_DAYS: "180"
         run: node .github/scripts/google-calendar-tasks-sync.js
+
+      - name: Commit sync state
+        run: |
+          if [ -z "$(git status --short -- .github/google-calendar-tasks-sync-state.json)" ]; then
+            echo "No Google Calendar sync state changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/google-calendar-tasks-sync-state.json
+          git commit -m "chore: update google calendar tasks sync state [skip ci]"
+          git pull --rebase origin main
+          git push
