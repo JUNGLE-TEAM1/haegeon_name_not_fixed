@@ -59,3 +59,5 @@ npm run dev
 cd backend
 ../.venv/bin/pytest -q
 ```
+
+<!-- schedule-resync: 2026-06-11 -->
