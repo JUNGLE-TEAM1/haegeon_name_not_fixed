@@ -6,31 +6,25 @@ on:
     types:
       - opened
       - edited
-      - deleted
-      - transferred
-      - pinned
-      - unpinned
       - closed
       - reopened
       - assigned
       - unassigned
       - labeled
       - unlabeled
-      - milestoned
-      - demilestoned
   schedule:
     - cron: "*/5 * * * *"
 
 permissions:
   contents: read
-  issues: read
+  issues: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Sync issues to Notion
+      - name: Sync issues both ways
         uses: actions/github-script@v7
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
@@ -39,13 +33,10 @@ jobs:
           script: |
             const notionToken = process.env.NOTION_TOKEN;
             const databaseId = process.env.NOTION_DATABASE_ID;
-
             const owner = "JUNGLE-TEAM1";
             const repo = "haegeon_name_not_fixed";
             const notionVersion = "2022-06-28";
-
-            if (!notionToken) throw new Error("Missing NOTION_TOKEN");
-            if (!databaseId) throw new Error("Missing NOTION_DATABASE_ID");
+            const toleranceMs = 10_000;
 
             async function notion(path, method = "GET", body) {
               const res = await fetch(`https://api.notion.com/v1${path}`, {
@@ -63,65 +54,162 @@ jobs:
               return text ? JSON.parse(text) : {};
             }
 
-            function props(issue) {
-              const assignees = issue.assignees.map(a => a.login).join(", ");
-              const labels = issue.labels.map(l => l.name).join(", ");
+            function textProp(value) {
+              return { rich_text: value ? [{ text: { content: String(value) } }] : [] };
+            }
 
+            function dateProp(value) {
+              return { date: value ? { start: value } : null };
+            }
+
+            function getTitle(page) {
+              return (page.properties.Issue?.title || []).map(t => t.plain_text).join("");
+            }
+
+            function cleanTitle(title, number) {
+              return title.replace(new RegExp(`^#${number}\\s*`), "").trim();
+            }
+
+            function getDate(page, name) {
+              const value = page.properties[name]?.date?.start;
+              return value ? new Date(value) : null;
+            }
+
+            function issueToNotionProps(issue, source) {
               return {
                 Issue: { title: [{ text: { content: `#${issue.number} ${issue.title}` } }] },
                 Number: { number: issue.number },
                 State: { select: { name: issue.state } },
                 "Issue URL": { url: issue.html_url },
-                Assignees: { rich_text: [{ text: { content: assignees } }] },
-                Labels: { rich_text: [{ text: { content: labels } }] },
-                Created: { date: { start: issue.created_at } },
-                Updated: { date: { start: issue.updated_at } },
+                Assignees: textProp(issue.assignees.map(a => a.login).join(", ")),
+                Labels: textProp(issue.labels.map(l => l.name).join(", ")),
+                Created: dateProp(issue.created_at),
+                Updated: dateProp(issue.updated_at),
                 Repo: { url: `https://github.com/${owner}/${repo}` },
+                "Last Synced At": dateProp(new Date().toISOString()),
+                "Last GitHub Updated": dateProp(issue.updated_at),
+                "Last Sync Source": { select: { name: source } },
+                "Sync Error": textProp(""),
               };
             }
 
-            const issues = await github.paginate(github.rest.issues.listForRepo, {
-              owner,
-              repo,
-              state: "all",
-              per_page: 100,
-            });
-
-            const onlyIssues = issues.filter(issue => !issue.pull_request);
-
-            const existing = new Map();
-            let cursor = undefined;
-
-            do {
-              const data = await notion(`/databases/${databaseId}/query`, "POST", {
-                page_size: 100,
-                start_cursor: cursor,
+            async function listGithubIssues() {
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner,
+                repo,
+                state: "all",
+                per_page: 100,
               });
+              return issues.filter(issue => !issue.pull_request);
+            }
 
-              for (const page of data.results) {
-                const num = page.properties?.Number?.number;
-                if (typeof num === "number") existing.set(num, page.id);
-              }
+            async function listNotionRows() {
+              const rows = [];
+              let cursor;
 
-              cursor = data.has_more ? data.next_cursor : undefined;
-            } while (cursor);
+              do {
+                const data = await notion(`/databases/${databaseId}/query`, "POST", {
+                  page_size: 100,
+                  start_cursor: cursor,
+                });
+                rows.push(...data.results);
+                cursor = data.has_more ? data.next_cursor : undefined;
+              } while (cursor);
+
+              return rows;
+            }
+
+            const githubIssues = await listGithubIssues();
+            const notionRows = await listNotionRows();
+
+            const notionByNumber = new Map();
+            for (const page of notionRows) {
+              const number = page.properties.Number?.number;
+              if (typeof number === "number") notionByNumber.set(number, page);
+            }
 
             let created = 0;
-            let updated = 0;
+            let githubToNotion = 0;
+            let notionToGithub = 0;
+            let conflicts = 0;
 
-            for (const issue of onlyIssues) {
-              const pageId = existing.get(issue.number);
+            for (const issue of githubIssues) {
+              const page = notionByNumber.get(issue.number);
 
-              if (pageId) {
-                await notion(`/pages/${pageId}`, "PATCH", { properties: props(issue) });
-                updated++;
-              } else {
+              if (!page) {
                 await notion("/pages", "POST", {
                   parent: { database_id: databaseId },
-                  properties: props(issue),
+                  properties: issueToNotionProps(issue, "GitHub"),
                 });
                 created++;
+                continue;
+              }
+
+              const lastSyncedAt = getDate(page, "Last Synced At");
+              const lastGithubUpdated = getDate(page, "Last GitHub Updated");
+              const notionEditedAt = new Date(page.last_edited_time);
+              const githubUpdatedAt = new Date(issue.updated_at);
+
+              if (!lastSyncedAt || !lastGithubUpdated) {
+                await notion(`/pages/${page.id}`, "PATCH", {
+                  properties: issueToNotionProps(issue, "GitHub"),
+                });
+                githubToNotion++;
+                continue;
+              }
+
+              const notionChanged = notionEditedAt.getTime() > lastSyncedAt.getTime() + toleranceMs;
+              const githubChanged = githubUpdatedAt.getTime() > lastGithubUpdated.getTime() + 1000;
+
+              if (githubChanged && !notionChanged) {
+                await notion(`/pages/${page.id}`, "PATCH", {
+                  properties: issueToNotionProps(issue, "GitHub"),
+                });
+                githubToNotion++;
+                continue;
+              }
+
+              if (notionChanged && !githubChanged) {
+                const notionTitle = cleanTitle(getTitle(page), issue.number);
+                const notionState = page.properties.State?.select?.name;
+
+                const patch = {};
+                if (notionTitle && notionTitle !== issue.title) patch.title = notionTitle;
+                if ((notionState === "open" || notionState === "closed") && notionState !== issue.state) {
+                  patch.state = notionState;
+                }
+
+                let updatedIssue = issue;
+
+                if (Object.keys(patch).length > 0) {
+                  const result = await github.rest.issues.update({
+                    owner,
+                    repo,
+                    issue_number: issue.number,
+                    ...patch,
+                  });
+                  updatedIssue = result.data;
+                  notionToGithub++;
+                }
+
+                await notion(`/pages/${page.id}`, "PATCH", {
+                  properties: issueToNotionProps(updatedIssue, "Notion"),
+                });
+                continue;
+              }
+
+              if (githubChanged && notionChanged) {
+                await notion(`/pages/${page.id}`, "PATCH", {
+                  properties: {
+                    "Last Sync Source": { select: { name: "Conflict" } },
+                    "Sync Error": textProp("Conflict: GitHub and Notion both changed after the last sync. Resolve manually."),
+                  },
+                });
+                conflicts++;
               }
             }
 
-            console.log(`Synced ${onlyIssues.length} issues. Created: ${created}, Updated: ${updated}`);
+            console.log(`Created: ${created}`);
+            console.log(`GitHub -> Notion: ${githubToNotion}`);
+            console.log(`Notion -> GitHub: ${notionToGithub}`);
+            console.log(`Conflicts: ${conflicts}`);
