@@ -38,6 +38,9 @@ jobs:
             const notionVersion = "2022-06-28";
             const toleranceMs = 10_000;
 
+            if (!notionToken) throw new Error("Missing NOTION_TOKEN");
+            if (!databaseId) throw new Error("Missing NOTION_DATABASE_ID");
+
             async function notion(path, method = "GET", body) {
               const res = await fetch(`https://api.notion.com/v1${path}`, {
                 method,
@@ -63,7 +66,9 @@ jobs:
             }
 
             function getTitle(page) {
-              return (page.properties.Issue?.title || []).map(t => t.plain_text).join("");
+              return (page.properties.Issue?.title || [])
+                .map(t => t.plain_text || t.text?.content || "")
+                .join("");
             }
 
             function cleanTitle(title, number) {
@@ -100,6 +105,7 @@ jobs:
                 state: "all",
                 per_page: 100,
               });
+
               return issues.filter(issue => !issue.pull_request);
             }
 
@@ -112,6 +118,7 @@ jobs:
                   page_size: 100,
                   start_cursor: cursor,
                 });
+
                 rows.push(...data.results);
                 cursor = data.has_more ? data.next_cursor : undefined;
               } while (cursor);
@@ -119,19 +126,54 @@ jobs:
               return rows;
             }
 
+            async function updateGithubFromNotion(page, issue) {
+              const notionTitle = cleanTitle(getTitle(page), issue.number);
+              const notionState = page.properties.State?.select?.name;
+
+              const patch = {};
+
+              if (notionTitle && notionTitle !== issue.title) {
+                patch.title = notionTitle;
+              }
+
+              if (
+                (notionState === "open" || notionState === "closed") &&
+                notionState !== issue.state
+              ) {
+                patch.state = notionState;
+              }
+
+              if (Object.keys(patch).length === 0) {
+                return null;
+              }
+
+              const result = await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                ...patch,
+              });
+
+              return result.data;
+            }
+
             const githubIssues = await listGithubIssues();
             const notionRows = await listNotionRows();
 
             const notionByNumber = new Map();
+
             for (const page of notionRows) {
               const number = page.properties.Number?.number;
-              if (typeof number === "number") notionByNumber.set(number, page);
+              if (typeof number === "number") {
+                notionByNumber.set(number, page);
+              }
             }
 
             let created = 0;
             let githubToNotion = 0;
             let notionToGithub = 0;
             let conflicts = 0;
+            let unchanged = 0;
 
             for (const issue of githubIssues) {
               const page = notionByNumber.get(issue.number);
@@ -141,6 +183,7 @@ jobs:
                   parent: { database_id: databaseId },
                   properties: issueToNotionProps(issue, "GitHub"),
                 });
+
                 created++;
                 continue;
               }
@@ -151,10 +194,22 @@ jobs:
               const githubUpdatedAt = new Date(issue.updated_at);
 
               if (!lastSyncedAt || !lastGithubUpdated) {
-                await notion(`/pages/${page.id}`, "PATCH", {
-                  properties: issueToNotionProps(issue, "GitHub"),
-                });
-                githubToNotion++;
+                const updatedIssue = await updateGithubFromNotion(page, issue);
+
+                if (updatedIssue) {
+                  await notion(`/pages/${page.id}`, "PATCH", {
+                    properties: issueToNotionProps(updatedIssue, "Notion"),
+                  });
+
+                  notionToGithub++;
+                } else {
+                  await notion(`/pages/${page.id}`, "PATCH", {
+                    properties: issueToNotionProps(issue, "GitHub"),
+                  });
+
+                  githubToNotion++;
+                }
+
                 continue;
               }
 
@@ -165,36 +220,33 @@ jobs:
                 await notion(`/pages/${page.id}`, "PATCH", {
                   properties: issueToNotionProps(issue, "GitHub"),
                 });
+
                 githubToNotion++;
                 continue;
               }
 
               if (notionChanged && !githubChanged) {
-                const notionTitle = cleanTitle(getTitle(page), issue.number);
-                const notionState = page.properties.State?.select?.name;
+                const updatedIssue = await updateGithubFromNotion(page, issue);
 
-                const patch = {};
-                if (notionTitle && notionTitle !== issue.title) patch.title = notionTitle;
-                if ((notionState === "open" || notionState === "closed") && notionState !== issue.state) {
-                  patch.state = notionState;
-                }
-
-                let updatedIssue = issue;
-
-                if (Object.keys(patch).length > 0) {
-                  const result = await github.rest.issues.update({
-                    owner,
-                    repo,
-                    issue_number: issue.number,
-                    ...patch,
+                if (updatedIssue) {
+                  await notion(`/pages/${page.id}`, "PATCH", {
+                    properties: issueToNotionProps(updatedIssue, "Notion"),
                   });
-                  updatedIssue = result.data;
+
                   notionToGithub++;
+                } else {
+                  await notion(`/pages/${page.id}`, "PATCH", {
+                    properties: {
+                      "Last Synced At": dateProp(new Date().toISOString()),
+                      "Last GitHub Updated": dateProp(issue.updated_at),
+                      "Last Sync Source": { select: { name: "Notion" } },
+                      "Sync Error": textProp(""),
+                    },
+                  });
+
+                  unchanged++;
                 }
 
-                await notion(`/pages/${page.id}`, "PATCH", {
-                  properties: issueToNotionProps(updatedIssue, "Notion"),
-                });
                 continue;
               }
 
@@ -205,11 +257,16 @@ jobs:
                     "Sync Error": textProp("Conflict: GitHub and Notion both changed after the last sync. Resolve manually."),
                   },
                 });
+
                 conflicts++;
+                continue;
               }
+
+              unchanged++;
             }
 
             console.log(`Created: ${created}`);
             console.log(`GitHub -> Notion: ${githubToNotion}`);
             console.log(`Notion -> GitHub: ${notionToGithub}`);
             console.log(`Conflicts: ${conflicts}`);
+            console.log(`Unchanged: ${unchanged}`);
