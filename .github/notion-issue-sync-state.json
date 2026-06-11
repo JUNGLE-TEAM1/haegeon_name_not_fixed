@@ -213,10 +213,10 @@
       "notionPageId": "37c0efec-dc54-8109-87aa-f4becd467307",
       "githubUpdatedAt": "2026-06-11T10:59:22Z",
       "notionLastEditedTime": "2026-06-11T10:59:00.000Z",
-      "lastSeenAt": "2026-06-11T12:35:18.258Z",
-      "deletedAt": null,
-      "deleteSource": null,
-      "lastSyncError": "Request failed due to following response errors:\n - Viewer not authorized to delete"
+      "lastSeenAt": "2026-06-11T12:47:14.861Z",
+      "deletedAt": "2026-06-11T12:47:14.861Z",
+      "deleteSource": "Notion",
+      "lastSyncError": ""
     },
     "19": {
       "number": 19,
