@@ -17,8 +17,8 @@ jobs:
       - name: Sync issues to Notion
         uses: actions/github-script@v7
         env:
-          NOTION_TOKEN: ${{ ntn_c40252775242s6lQcupfIAMTrnPg8KgKo5VdwUhXsoaao7 }}
-          NOTION_DATABASE_ID: ${{ 7e5c234752ea4e618c2bccc3f446ee62 }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         with:
           script: |
             const notionToken = process.env.NOTION_TOKEN;
