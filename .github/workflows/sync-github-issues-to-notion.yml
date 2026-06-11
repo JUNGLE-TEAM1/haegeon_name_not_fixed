@@ -58,16 +58,22 @@ jobs:
             }
 
             function textProp(value) {
-              return { rich_text: value ? [{ text: { content: String(value) } }] : [] };
+              return {
+                rich_text: value
+                  ? [{ type: "text", text: { content: String(value) } }]
+                  : [],
+              };
             }
 
             function dateProp(value) {
-              return { date: value ? { start: value } : null };
+              return {
+                date: value ? { start: value } : null,
+              };
             }
 
             function getTitle(page) {
               return (page.properties.Issue?.title || [])
-                .map(t => t.plain_text || t.text?.content || "")
+                .map((t) => t.plain_text || t.text?.content || "")
                 .join("");
             }
 
@@ -82,12 +88,14 @@ jobs:
 
             function issueToNotionProps(issue, source) {
               return {
-                Issue: { title: [{ text: { content: `#${issue.number} ${issue.title}` } }] },
+                Issue: {
+                  title: [{ type: "text", text: { content: `#${issue.number} ${issue.title}` } }],
+                },
                 Number: { number: issue.number },
                 State: { select: { name: issue.state } },
                 "Issue URL": { url: issue.html_url },
-                Assignees: textProp(issue.assignees.map(a => a.login).join(", ")),
-                Labels: textProp(issue.labels.map(l => l.name).join(", ")),
+                Assignees: textProp(issue.assignees.map((a) => a.login).join(", ")),
+                Labels: textProp(issue.labels.map((l) => l.name).join(", ")),
                 Created: dateProp(issue.created_at),
                 Updated: dateProp(issue.updated_at),
                 Repo: { url: `https://github.com/${owner}/${repo}` },
@@ -106,7 +114,7 @@ jobs:
                 per_page: 100,
               });
 
-              return issues.filter(issue => !issue.pull_request);
+              return issues.filter((issue) => !issue.pull_request);
             }
 
             async function listNotionRows() {
@@ -114,10 +122,10 @@ jobs:
               let cursor;
 
               do {
-                const data = await notion(`/databases/${databaseId}/query`, "POST", {
-                  page_size: 100,
-                  start_cursor: cursor,
-                });
+                const body = { page_size: 100 };
+                if (cursor) body.start_cursor = cursor;
+
+                const data = await notion(`/databases/${databaseId}/query`, "POST", body);
 
                 rows.push(...data.results);
                 cursor = data.has_more ? data.next_cursor : undefined;
@@ -213,8 +221,11 @@ jobs:
                 continue;
               }
 
-              const notionChanged = notionEditedAt.getTime() > lastSyncedAt.getTime() + toleranceMs;
-              const githubChanged = githubUpdatedAt.getTime() > lastGithubUpdated.getTime() + 1000;
+              const notionChanged =
+                notionEditedAt.getTime() > lastSyncedAt.getTime() + toleranceMs;
+
+              const githubChanged =
+                githubUpdatedAt.getTime() > lastGithubUpdated.getTime() + 1000;
 
               if (githubChanged && !notionChanged) {
                 await notion(`/pages/${page.id}`, "PATCH", {
@@ -254,7 +265,9 @@ jobs:
                 await notion(`/pages/${page.id}`, "PATCH", {
                   properties: {
                     "Last Sync Source": { select: { name: "Conflict" } },
-                    "Sync Error": textProp("Conflict: GitHub and Notion both changed after the last sync. Resolve manually."),
+                    "Sync Error": textProp(
+                      "Conflict: GitHub and Notion both changed after the last sync. Resolve manually."
+                    ),
                   },
                 });
 
