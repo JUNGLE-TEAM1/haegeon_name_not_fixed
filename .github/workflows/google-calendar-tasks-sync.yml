@@ -1,0 +1,31 @@
+name: Google Calendar Tasks Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-calendar-tasks-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync Google Calendar events into Notion Tasks
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_TASKS_DATABASE_ID: ${{ secrets.NOTION_TASKS_DATABASE_ID || '1ae7a290945144f0a01a2cc376820007' }}
+          GOOGLE_CALENDAR_ICAL_URL: ${{ secrets.GOOGLE_CALENDAR_ICAL_URL }}
+          GCAL_DEFAULT_TIME_OFFSET: "+09:00"
+          GCAL_SYNC_LOOKBACK_DAYS: "30"
+          GCAL_SYNC_LOOKAHEAD_DAYS: "180"
+        run: node .github/scripts/google-calendar-tasks-sync.js
