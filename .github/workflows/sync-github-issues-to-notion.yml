@@ -2,8 +2,24 @@ name: Sync GitHub Issues to Notion
 
 on:
   workflow_dispatch:
+  issues:
+    types:
+      - opened
+      - edited
+      - deleted
+      - transferred
+      - pinned
+      - unpinned
+      - closed
+      - reopened
+      - assigned
+      - unassigned
+      - labeled
+      - unlabeled
+      - milestoned
+      - demilestoned
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
